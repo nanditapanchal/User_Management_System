@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API, { setAuthToken } from "../api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -15,8 +15,9 @@ export default function Dashboard() {
     fatherNumber: "",
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
-  // On mount: check token & fetch contacts
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return navigate("/login");
@@ -27,27 +28,46 @@ export default function Dashboard() {
       .catch((err) => console.error(err));
   }, [navigate]);
 
-  // Add new contact
-  const handleAdd = async (e) => {
+  // Add or Edit contact
+  const handleAddOrEdit = async (e) => {
     e.preventDefault();
     try {
-      const res = await API.post("/api/contacts", newContact);
-      setContacts((prev) => [...prev, res.data]);
+      if (editingId) {
+        const res = await API.put(`/api/contacts/${editingId}`, newContact);
+        setContacts((prev) =>
+          prev.map((c) => (c._id === editingId ? res.data : c))
+        );
+        setEditingId(null);
+      } else {
+        const res = await API.post("/api/contacts", newContact);
+        setContacts((prev) => [...prev, res.data]);
+      }
       setNewContact({ name: "", email: "", phone: "", age: "", fatherNumber: "" });
+      setShowModal(false);
     } catch (err) {
       console.error(err);
-      alert("Failed to add contact. Make sure all required fields are filled.");
+      alert("Failed to save contact. Make sure all required fields are filled.");
     }
   };
 
-  // Toggle select checkbox
+  const openEditModal = (contact) => {
+    setEditingId(contact._id);
+    setNewContact({
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phone,
+      age: contact.age,
+      fatherNumber: contact.fatherNumber,
+    });
+    setShowModal(true);
+  };
+
   const toggleSelect = (id) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
-  // Delete selected contacts
   const deleteSelected = async () => {
     try {
       await Promise.all(selectedIds.map((id) => API.delete(`/api/contacts/${id}`)));
@@ -59,14 +79,12 @@ export default function Dashboard() {
     }
   };
 
-  // Logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     setAuthToken(null);
     navigate("/login");
   };
 
-  // Sorting
   const sortedContacts = React.useMemo(() => {
     if (!sortConfig.key) return contacts;
     const sorted = [...contacts].sort((a, b) => {
@@ -86,130 +104,196 @@ export default function Dashboard() {
   };
 
   const getSortIndicator = (key) => {
-    if (sortConfig.key === key) return sortConfig.direction === "asc" ? "↑" : "↓";
-    return "";
+    if (sortConfig.key === key) {
+      return sortConfig.direction === "asc" ? "▲" : "▼";
+    }
+    return "⇵";
   };
 
+  const gradientArrow = (key) => (
+    <span className="ml-1 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-500 font-bold">
+      {getSortIndicator(key)}
+    </span>
+  );
+
   return (
-    <div className="p-6 min-h-screen bg-gray-100">
-      <div className="flex justify-between items-center mb-4">
-        <motion.h1 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-3xl font-bold">
+    <div className="p-6 min-h-screen bg-gradient-to-tr from-indigo-100 via-purple-100 to-pink-100">
+      <div className="flex justify-between items-center mb-6">
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500"
+        >
           Dashboard
         </motion.h1>
-        <button
-          onClick={handleLogout}
-          className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"
-        >
-          Logout
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-5 py-2 rounded-full shadow-lg hover:scale-105 transform transition"
+          >
+            Add Contact
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-gradient-to-r from-red-400 to-red-600 text-white px-5 py-2 rounded-full shadow-lg hover:scale-105 transform transition"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
-      {/* Add Contact Form */}
-      <motion.form
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-4 bg-white p-4 rounded shadow"
-        onSubmit={handleAdd}
-      >
-        <h2 className="font-semibold mb-2">Add Contact</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input
-            placeholder="Name"
-            value={newContact.name}
-            onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-            className="p-2 border rounded"
-          />
-          <input
-            placeholder="Email"
-            value={newContact.email}
-            onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-            className="p-2 border rounded"
-          />
-          <input
-            placeholder="Phone"
-            value={newContact.phone}
-            onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-            className="p-2 border rounded"
-          />
-          <input
-            placeholder="Age"
-            value={newContact.age}
-            onChange={(e) => setNewContact({ ...newContact, age: e.target.value })}
-            className="p-2 border rounded"
-          />
-          <input
-            placeholder="Father's Number"
-            value={newContact.fatherNumber}
-            onChange={(e) => setNewContact({ ...newContact, fatherNumber: e.target.value })}
-            className="p-2 border rounded"
-          />
-        </div>
-        <button type="submit" className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
-          Add
-        </button>
-      </motion.form>
-
-      {/* Delete Selected */}
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-3">
         <button
           onClick={deleteSelected}
           disabled={selectedIds.length === 0}
-          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+          className="bg-gradient-to-r from-red-400 to-red-600 text-white px-5 py-2 rounded-full shadow-lg hover:scale-105 transition disabled:opacity-50"
         >
           Delete Selected
         </button>
-        <p>{selectedIds.length} selected</p>
+        <p className="text-gray-700 font-medium">{selectedIds.length} selected</p>
       </div>
 
-      {/* Contacts Table */}
-      <motion.table initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full bg-white rounded shadow overflow-hidden">
-        <thead className="bg-gray-200">
-          <tr>
-            <th className="p-2 text-center">Select</th>
-            <th className="p-2 cursor-pointer" onClick={() => requestSort("name")}>
-              Name {getSortIndicator("name")}
-            </th>
-            <th className="p-2 cursor-pointer" onClick={() => requestSort("email")}>
-              Email {getSortIndicator("email")}
-            </th>
-            <th className="p-2 cursor-pointer" onClick={() => requestSort("phone")}>
-              Phone {getSortIndicator("phone")}
-            </th>
-            <th className="p-2 cursor-pointer" onClick={() => requestSort("age")}>
-              Age {getSortIndicator("age")}
-            </th>
-            <th className="p-2 cursor-pointer" onClick={() => requestSort("fatherNumber")}>
-              Father’s Number {getSortIndicator("fatherNumber")}
-            </th>
-            <th className="p-2">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedContacts.map((c) => (
-            <tr key={c._id} className="hover:bg-gray-100 transition">
-              <td className="text-center p-2">
-                <input type="checkbox" checked={selectedIds.includes(c._id)} onChange={() => toggleSelect(c._id)} />
-              </td>
-              <td className="p-2">{c.name}</td>
-              <td className="p-2">{c.email}</td>
-              <td className="p-2">{c.phone}</td>
-              <td className="p-2">{c.age}</td>
-              <td className="p-2">{c.fatherNumber}</td>
-              <td className="p-2">
-                <button
-                  onClick={async () => {
-                    await API.delete(`/api/contacts/${c._id}`);
-                    setContacts((prev) => prev.filter((item) => item._id !== c._id));
-                  }}
-                  className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition"
-                >
-                  Delete
-                </button>
-              </td>
+      <motion.div className="overflow-x-auto rounded-2xl shadow-xl bg-white">
+        <motion.table
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="w-full border-collapse table-auto text-left"
+        >
+          <thead className="bg-gradient-to-r from-purple-300 to-pink-300 text-gray-800">
+            <tr>
+              <th className="p-3 border-b border-gray-300 text-center">Select</th>
+              <th className="p-3 border-b border-gray-300 cursor-pointer" onClick={() => requestSort("name")}>
+                Name {gradientArrow("name")}
+              </th>
+              <th className="p-3 border-b border-gray-300 cursor-pointer" onClick={() => requestSort("email")}>
+                Email {gradientArrow("email")}
+              </th>
+              <th className="p-3 border-b border-gray-300 cursor-pointer" onClick={() => requestSort("phone")}>
+                Phone {gradientArrow("phone")}
+              </th>
+              <th className="p-3 border-b border-gray-300 cursor-pointer" onClick={() => requestSort("age")}>
+                Age {gradientArrow("age")}
+              </th>
+              <th className="p-3 border-b border-gray-300 cursor-pointer" onClick={() => requestSort("fatherNumber")}>
+                Father’s Number {gradientArrow("fatherNumber")}
+              </th>
+              <th className="p-3 border-b border-gray-300">Action</th>
             </tr>
-          ))}
-        </tbody>
-      </motion.table>
+          </thead>
+          <tbody>
+            <AnimatePresence>
+              {sortedContacts.map((c) => (
+                <motion.tr
+                  key={c._id}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className={`hover:bg-purple-50 transition border-b border-gray-200 ${
+                    editingId === c._id ? "bg-yellow-50" : ""
+                  }`}
+                >
+                  <td className="text-center p-2 border-r border-gray-200">
+                    <input type="checkbox" checked={selectedIds.includes(c._id)} onChange={() => toggleSelect(c._id)} />
+                  </td>
+                  <td className="p-2 border-r border-gray-200">{c.name}</td>
+                  <td className="p-2 border-r border-gray-200">{c.email}</td>
+                  <td className="p-2 border-r border-gray-200">{c.phone}</td>
+                  <td className="p-2 border-r border-gray-200">{c.age}</td>
+                  <td className="p-2 border-r border-gray-200">{c.fatherNumber}</td>
+                  <td className="p-2 flex gap-2">
+                    <button
+                      onClick={() => openEditModal(c)}
+                      className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-white px-3 py-1 rounded-full hover:scale-105 transition"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await API.delete(`/api/contacts/${c._id}`);
+                        setContacts((prev) => prev.filter((item) => item._id !== c._id));
+                      }}
+                      className="bg-gradient-to-r from-red-400 to-red-600 text-white px-3 py-1 rounded-full hover:scale-105 transition"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </motion.tr>
+              ))}
+            </AnimatePresence>
+          </tbody>
+        </motion.table>
+      </motion.div>
+
+      {/* Modal */}
+      {showModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="bg-white rounded-3xl shadow-2xl p-6 w-11/12 max-w-lg"
+          >
+            <h2 className="text-xl font-bold text-purple-600 mb-4">
+              {editingId ? "Edit Contact" : "Add New Contact"}
+            </h2>
+            <form onSubmit={handleAddOrEdit} className="grid grid-cols-1 gap-4">
+              <input
+                placeholder="Name"
+                value={newContact.name}
+                onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                className="p-3 border rounded-xl focus:ring-2 focus:ring-purple-300 transition"
+              />
+              <input
+                placeholder="Email"
+                value={newContact.email}
+                onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                className="p-3 border rounded-xl focus:ring-2 focus:ring-purple-300 transition"
+              />
+              <input
+                placeholder="Phone"
+                value={newContact.phone}
+                onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                className="p-3 border rounded-xl focus:ring-2 focus:ring-purple-300 transition"
+              />
+              <input
+                placeholder="Age"
+                value={newContact.age}
+                onChange={(e) => setNewContact({ ...newContact, age: e.target.value })}
+                className="p-3 border rounded-xl focus:ring-2 focus:ring-purple-300 transition"
+              />
+              <input
+                placeholder="Father's Number"
+                value={newContact.fatherNumber}
+                onChange={(e) => setNewContact({ ...newContact, fatherNumber: e.target.value })}
+                className="p-3 border rounded-xl focus:ring-2 focus:ring-purple-300 transition"
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingId(null);
+                  }}
+                  className="px-4 py-2 rounded-full bg-gray-300 hover:bg-gray-400 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:scale-105 transform transition"
+                >
+                  {editingId ? "Update" : "Add"}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ const contactSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   age: Number,
   fatherNumber: String,
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 });
 
 export default mongoose.model("Contact", contactSchema);

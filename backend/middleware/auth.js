@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-export default function (req, res, next) {
+export default function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || req.cookies?.token;
   if (!authHeader) return res.status(401).json({ message: "No token" });
 
@@ -10,7 +10,7 @@ export default function (req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.user = decoded; // { id, email }
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid token" });
