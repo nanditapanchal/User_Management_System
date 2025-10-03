@@ -18,6 +18,11 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageDirection, setPageDirection] = useState(0);
+  const itemsPerPage = 5;
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return navigate("/login");
@@ -28,7 +33,63 @@ export default function Dashboard() {
       .catch((err) => console.error(err));
   }, [navigate]);
 
-  // Add or Edit contact
+  // Sorting
+  const sortedContacts = React.useMemo(() => {
+    if (!sortConfig.key) return contacts;
+    const sorted = [...contacts].sort((a, b) => {
+      const aValue = a[sortConfig.key] || "";
+      const bValue = b[sortConfig.key] || "";
+      if (typeof aValue === "string") return aValue.localeCompare(bValue);
+      return aValue - bValue;
+    });
+    if (sortConfig.direction === "desc") sorted.reverse();
+    return sorted;
+  }, [contacts, sortConfig]);
+
+  const requestSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key) => {
+    if (sortConfig.key === key) return sortConfig.direction === "asc" ? "▲" : "▼";
+    return "⇵";
+  };
+
+  const gradientArrow = (key) => (
+    <span className="ml-1 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-500 font-bold">
+      {getSortIndicator(key)}
+    </span>
+  );
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedContacts.length / itemsPerPage);
+  const paginatedContacts = sortedContacts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const goToPage = (page) => {
+    if (page < 1 || page > totalPages) return;
+    setPageDirection(page > currentPage ? 1 : -1);
+    setCurrentPage(page);
+  };
+
+  // Generate page buttons (max 5 visible)
+  const getPageNumbers = () => {
+    const pages = [];
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+
+    if (start > 1) pages.push(1, "start-ellipsis");
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages) pages.push("end-ellipsis", totalPages);
+
+    return pages;
+  };
+
+  // Add/Edit Contact
   const handleAddOrEdit = async (e) => {
     e.preventDefault();
     try {
@@ -85,39 +146,9 @@ export default function Dashboard() {
     navigate("/login");
   };
 
-  const sortedContacts = React.useMemo(() => {
-    if (!sortConfig.key) return contacts;
-    const sorted = [...contacts].sort((a, b) => {
-      const aValue = a[sortConfig.key] || "";
-      const bValue = b[sortConfig.key] || "";
-      if (typeof aValue === "string") return aValue.localeCompare(bValue);
-      return aValue - bValue;
-    });
-    if (sortConfig.direction === "desc") sorted.reverse();
-    return sorted;
-  }, [contacts, sortConfig]);
-
-  const requestSort = (key) => {
-    let direction = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
-    setSortConfig({ key, direction });
-  };
-
-  const getSortIndicator = (key) => {
-    if (sortConfig.key === key) {
-      return sortConfig.direction === "asc" ? "▲" : "▼";
-    }
-    return "⇵";
-  };
-
-  const gradientArrow = (key) => (
-    <span className="ml-1 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-500 font-bold">
-      {getSortIndicator(key)}
-    </span>
-  );
-
   return (
     <div className="p-6 min-h-screen bg-gradient-to-tr from-indigo-100 via-purple-100 to-pink-100">
+      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <motion.h1
           initial={{ opacity: 0, y: -20 }}
@@ -142,6 +173,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Selected Delete */}
       <div className="flex justify-between items-center mb-3">
         <button
           onClick={deleteSelected}
@@ -153,12 +185,9 @@ export default function Dashboard() {
         <p className="text-gray-700 font-medium">{selectedIds.length} selected</p>
       </div>
 
+      {/* Table */}
       <motion.div className="overflow-x-auto rounded-2xl shadow-xl bg-white">
-        <motion.table
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="w-full border-collapse table-auto text-left"
-        >
+        <motion.table className="w-full border-collapse table-auto text-left">
           <thead className="bg-gradient-to-r from-purple-300 to-pink-300 text-gray-800">
             <tr>
               <th className="p-3 border-b border-gray-300 text-center">Select</th>
@@ -180,9 +209,15 @@ export default function Dashboard() {
               <th className="p-3 border-b border-gray-300">Action</th>
             </tr>
           </thead>
-          <tbody>
-            <AnimatePresence>
-              {sortedContacts.map((c) => (
+          <AnimatePresence mode="wait">
+            <motion.tbody
+              key={currentPage}
+              initial={{ x: pageDirection * 300, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -pageDirection * 300, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            >
+              {paginatedContacts.map((c) => (
                 <motion.tr
                   key={c._id}
                   initial={{ opacity: 0, y: -10 }}
@@ -219,10 +254,45 @@ export default function Dashboard() {
                   </td>
                 </motion.tr>
               ))}
-            </AnimatePresence>
-          </tbody>
+            </motion.tbody>
+          </AnimatePresence>
         </motion.table>
       </motion.div>
+
+      {/* Pagination Controls */}
+      <div className="flex justify-center mt-4 gap-2 flex-wrap">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-2 rounded-full bg-gray-300 hover:bg-gray-400 disabled:opacity-50 transition"
+        >
+          Prev
+        </button>
+        {getPageNumbers().map((p, i) =>
+          p === "start-ellipsis" || p === "end-ellipsis" ? (
+            <span key={i} className="px-2 py-2 text-gray-500">
+              ...
+            </span>
+          ) : (
+            <button
+              key={i}
+              onClick={() => goToPage(p)}
+              className={`px-4 py-2 rounded-full ${
+                currentPage === p ? "bg-purple-500 text-white" : "bg-gray-200 hover:bg-gray-300"
+              } transition`}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-2 rounded-full bg-gray-300 hover:bg-gray-400 disabled:opacity-50 transition"
+        >
+          Next
+        </button>
+      </div>
 
       {/* Modal */}
       {showModal && (

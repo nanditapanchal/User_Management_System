@@ -18,14 +18,39 @@ passport.use(
       callbackURL: process.env.GOOGLE_CALLBACK_URL,
     },
     async (accessToken, refreshToken, profile, done) => {
-      const existing = await User.findOne({ googleId: profile.id });
-      if (existing) return done(null, existing);
-      const user = await User.create({
-        googleId: profile.id,
-        name: profile.displayName,
-        email: profile.emails?.[0]?.value,
-      });
-      done(null, user);
+      try {
+        const email = profile.emails?.[0]?.value;
+
+        // 1️⃣ Check if user exists with googleId
+        let user = await User.findOne({ googleId: profile.id });
+        if (user) return done(null, user);
+
+        // 2️⃣ Check if user exists with same email
+        const existingByEmail = await User.findOne({ email });
+
+        if (existingByEmail) {
+          // 🚨 Case: same email already used for password signup
+          if (existingByEmail.passwordHash && !existingByEmail.googleId) {
+            return done(null, false, { message: "Email already registered. Please log in with email & password." });
+          }
+
+          // ✅ Case: maybe Google account without googleId linked → update it
+          existingByEmail.googleId = profile.id;
+          await existingByEmail.save();
+          return done(null, existingByEmail);
+        }
+
+        // 3️⃣ If no user exists at all → create new Google user
+        user = await User.create({
+          googleId: profile.id,
+          name: profile.displayName,
+          email,
+        });
+
+        return done(null, user);
+      } catch (err) {
+        return done(err, false);
+      }
     }
   )
 );

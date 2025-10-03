@@ -1,13 +1,27 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import API, { setAuthToken } from "../api";
 import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 import { motion } from "framer-motion";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const error = params.get("error");
+    if (error) {
+      setErrorMsg(error);
+      navigate("/login", { replace: true }); 
+      setTimeout(() => setErrorMsg(""), 5000); 
+    }
+  }, [location, navigate]);
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -20,7 +34,8 @@ export default function Login() {
       setAuthToken(res.data.token);
       navigate("/dashboard");
     } catch (err) {
-      alert(err.response?.data?.message || "Something went wrong");
+      setErrorMsg(err.response?.data?.message || "Something went wrong");
+      setTimeout(() => setErrorMsg(""), 5000);
     }
   };
 
@@ -31,7 +46,14 @@ export default function Login() {
   const goToRegister = () => navigate("/register");
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 p-4 relative">
+      {/* Toast popup */}
+      {errorMsg && (
+        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-xl shadow-lg animate-slide-in">
+          {errorMsg}
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -78,27 +100,33 @@ export default function Login() {
         </form>
 
         <div className="flex justify-center mb-4 text-gray-600 text-sm">
-          Don't have an account?{" "}
+          Don't have an account? {"  "}
           <span
             className="cursor-pointer text-purple-500 hover:underline transition"
             onClick={goToRegister}
           >
-            Register
+             Register
           </span>
         </div>
 
         <div className="text-center mb-4 text-gray-500 font-semibold">OR</div>
 
-        <button
-          onClick={handleGoogleSignIn}
-          className="w-full bg-gradient-to-r from-red-400 to-red-600 text-white p-3 rounded-xl hover:from-red-500 hover:to-red-700 transition flex items-center justify-center shadow-md font-semibold"
-        >
-          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/0/09/Google_%22G%22_Logo.svg"
-            alt="G Logo"
-            className="w-5 h-5 mr-2"
-          />
-          Sign in with Google
+       <button
+  onClick={handleGoogleSignIn}
+  className="w-full bg-white text-gray-700 p-3 rounded-xl hover:bg-gray-100 transition flex items-center justify-center shadow-md font-semibold border border-gray-300"
+>
+         <svg
+  className="w-5 h-5 mr-2"
+  viewBox="0 0 533.5 544.3"
+>
+  <path fill="#4285F4" d="M533.5 278.4c0-17.7-1.5-34.6-4.3-51H272v96.6h146.9c-6.4 34.6-25.7 63.8-54.7 83.4v69.2h88.3c51.6-47.6 81.2-117.5 81.2-198.2z"/>
+  <path fill="#34A853" d="M272 544.3c73.6 0 135.4-24.3 180.6-66.1l-88.3-69.2c-24.5 16.4-56 26-92.3 26-70.9 0-131-47.9-152.5-112.3H29.9v70.6c45.1 89.1 137.2 150.9 242.1 150.9z"/>
+  <path fill="#FBBC05" d="M119.5 321.3c-10.3-30.6-10.3-63.9 0-94.5V156.2H29.9c-45.1 89.1-45.1 195.1 0 284.2l89.6-70.6z"/>
+  <path fill="#EA4335" d="M272 107.6c38.7-.6 75.9 14 104.1 40.7l78.1-78.1C407.4 25.7 345.6 0 272 0 167.2 0 75.1 61.8 29.9 150.9l89.6 70.6c21.5-64.4 81.6-112.3 152.5-112.3z"/>
+</svg>
+
+
+          Sign up with Google
         </button>
       </motion.div>
     </div>
